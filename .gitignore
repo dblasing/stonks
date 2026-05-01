@@ -1,0 +1,27 @@
+# Byte-compiled
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual envs
+.venv/
+venv/
+env/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+
+# Generated charts and data
+*.png
+*.jpg
+*.pdf
+*.csv
+*.parquet
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
