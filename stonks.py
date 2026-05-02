@@ -12,6 +12,8 @@ Usage:
     ./stonks.py PLTR --out chart.png
 """
 
+from __future__ import annotations
+
 import argparse
 import sys
 from datetime import datetime, timedelta
