@@ -74,6 +74,32 @@ def find_extrema(closes: np.ndarray, order: int):
     return high_idx, low_idx
 
 
+def find_max_drawdown(df: pd.DataFrame, high_idx: np.ndarray, low_idx: np.ndarray):
+    """Find the largest peak→later-trough drawdown.
+
+    Returns (peak_idx, trough_idx, pct_drop) or None if no qualifying pair exists.
+    """
+    if len(high_idx) == 0 or len(low_idx) == 0:
+        return None
+
+    closes = df["Close"].to_numpy()
+    best = None  # (peak_idx, trough_idx, pct_drop)
+
+    for hi in high_idx:
+        peak_p = float(closes[hi])
+        for li in low_idx:
+            if li <= hi:
+                continue
+            trough_p = float(closes[li])
+            if trough_p >= peak_p:
+                continue
+            pct = (peak_p - trough_p) / peak_p * 100.0
+            if best is None or pct > best[2]:
+                best = (int(hi), int(li), pct)
+
+    return best
+
+
 def plot_chart(
     df: pd.DataFrame,
     ticker: str,
@@ -81,8 +107,9 @@ def plot_chart(
     high_idx: np.ndarray,
     low_idx: np.ndarray,
     out: Path | None = None,
+    show_drawdown: bool = True,
 ) -> None:
-    """Render the price chart with SMA and annotated extrema."""
+    """Render the price chart with SMA, annotated extrema, and max drawdown."""
     fig, ax = plt.subplots(figsize=(16, 8))
 
     ax.plot(
@@ -105,6 +132,43 @@ def plot_chart(
 
     _annotate_points(ax, df, high_idx, color="green", offset=25, label_color="darkgreen", bg="lightgreen")
     _annotate_points(ax, df, low_idx,  color="red",   offset=-28, label_color="darkred",   bg="lightcoral", va="top")
+
+    if show_drawdown:
+        dd = find_max_drawdown(df, high_idx, low_idx)
+        if dd is not None:
+            peak_i, trough_i, pct = dd
+            peak_date = df.index[peak_i]
+            peak_price = float(df["Close"].iloc[peak_i])
+            trough_date = df.index[trough_i]
+            trough_price = float(df["Close"].iloc[trough_i])
+
+            # Dashed connector between peak and trough
+            ax.plot(
+                [peak_date, trough_date],
+                [peak_price, trough_price],
+                linestyle="--",
+                color="dimgray",
+                linewidth=1.8,
+                alpha=0.75,
+                zorder=2,
+            )
+
+            # Midpoint label — halfway in both time and price
+            mid_date = peak_date + (trough_date - peak_date) / 2
+            mid_price = (peak_price + trough_price) / 2
+
+            ax.annotate(
+                f"▼ {pct:.1f}%",
+                xy=(mid_date, mid_price),
+                ha="center",
+                va="center",
+                fontsize=14,
+                fontweight="bold",
+                color="white",
+                bbox=dict(boxstyle="round,pad=0.5", fc="darkred",
+                          ec="black", linewidth=1.2, alpha=0.95),
+                zorder=7,
+            )
 
     ax.set_title(
         f"{ticker} — {len(df)}-bar Price + {sma_window}-day SMA\n"
@@ -165,6 +229,9 @@ def parse_args(argv=None) -> argparse.Namespace:
     p.add_argument("--out", type=Path, default=None,
                    help="Save chart to file instead of showing interactively. "
                         "With multiple tickers, the ticker is appended to the stem.")
+    p.add_argument("--no-drawdown", dest="show_drawdown",
+                   action="store_false", default=True,
+                   help="Hide the max-drawdown annotation (shown by default).")
     return p.parse_args(argv)
 
 
@@ -188,7 +255,8 @@ def main(argv=None) -> int:
         if out is not None and len(args.tickers) > 1:
             out = out.with_stem(f"{out.stem}_{ticker}")
 
-        plot_chart(df, ticker, args.sma, high_idx, low_idx, out=out)
+        plot_chart(df, ticker, args.sma, high_idx, low_idx,
+                   out=out, show_drawdown=args.show_drawdown)
 
     return 0
 
