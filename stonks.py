@@ -46,6 +46,12 @@ def fetch_prices(ticker: str, days: int) -> pd.DataFrame:
     )
     if df.empty:
         raise ValueError(f"No data returned for {ticker}")
+    # Recent yfinance versions return MultiIndex columns even for a single
+    # ticker (e.g. ('Close', 'PLTR')). Flatten so df['Close'] is a Series,
+    # not a 1-column DataFrame — otherwise .iloc[i] returns a Series and
+    # float() raises a FutureWarning.
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.get_level_values(0)
     return df
 
 
